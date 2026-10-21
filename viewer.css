@@ -53,16 +53,17 @@ hr { border: 0; height: 1px; background: var(--edge); margin: 22px 0; }
 .mood { font-size: 19px; font-weight: 700; line-height: 1.4; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .chip {
-  font: inherit; font-size: 13px; color: var(--sub); background: transparent; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--sub); background: transparent;
   padding: 5px 10px; border-radius: 14px; border: 1px solid var(--edge);
 }
 .chip.on { border-color: var(--accent); color: var(--text); }
-.pair { padding: 10px 0; border-bottom: 1px solid var(--edge); }
-.pair .w { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; font-weight: 700; }
-.pair .d { font-weight: 600; font-size: 13px; white-space: nowrap; }
-.d.friendly { color: var(--ok); } .d.same { color: #b084ff; } .d.neutral { color: var(--sub); } .d.opposed { color: var(--warn); }
-.pair .r { font-size: 13px; color: var(--sub); line-height: 1.5; margin-top: 3px; }
-.pair .b { font-size: 12px; color: var(--mute); margin-top: 2px; }
+.people div { font-size: 14px; color: var(--sub); line-height: 1.7; }
+.people b { color: var(--text); margin-right: 4px; }
+.story { margin-top: 12px; }
+.story p { font-size: 15px; line-height: 1.65; margin-bottom: 8px; }
+.awards { margin-top: 6px; }
+.awards div { display: inline-block; font-size: 13px; color: var(--sub); padding: 5px 10px; margin: 0 6px 6px 0; border-radius: 14px; border: 1px solid var(--edge); }
+.awards b { color: var(--text); margin-right: 4px; }
 .foot { font-size: 12px; color: var(--mute); margin-top: 26px; }
 .intro { text-align: center; padding-top: 30vh; }
 .intro .brand { font-size: 14px; }

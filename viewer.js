@@ -69,16 +69,23 @@ function songTier(bpm) {
   return 'mid';
 }
 const memberLabel = (i, age) => `${i + 1}번(${age}세)`;
+// 앞말 받침에 맞는 조사 (이/가, 은/는). 숫자는 읽는 소리로 (tarot_fortune.josa 와 같다)
+function josa(word, withFinal, without) {
+  const ch = String(word).trim().slice(-1);
+  if (ch >= '가' && ch <= '힣') return (ch.charCodeAt(0) - 0xac00) % 28 ? withFinal : without;
+  return '0136789'.includes(ch) ? withFinal : without;
+}
+const firstKeyword = (p) => p.keywords.split('·')[0].trim();
 
 function placement(D, position, id, rev) {
   const c = D.cards[id];
   return { position, id, c, rev: !!rev, keywords: rev ? c.r : c.u, message: rev ? c.mr : c.m };
 }
-// 카드 그림(cards/<id>.jpg, 역방향이면 뒤집기) 옆에 자리·이름·키워드·한 줄 운세
+// 카드 그림(cards/<id>.jpg, 거꾸로 나온 카드는 뒤집기) 옆에 자리·이름·키워드·한 줄 운세
 function cardHTML(p) {
   return `<div class="card"><div class="ci ${p.rev ? 'rev' : ''}"><img src="cards/${esc(p.id)}.jpg" alt="${esc(p.c.n)}"></div>` +
     `<div class="ct"><div class="p">${esc(p.position)}</div>` +
-    `<div class="n">${esc(p.c.n)}${p.rev ? '<small>역방향</small>' : ''}</div>` +
+    `<div class="n">${esc(p.c.n)}${p.rev ? '<small>거꾸로</small>' : ''}</div>` +
     `<div class="k">${esc(p.keywords)}</div><div class="m">${esc(p.message)}</div></div></div>`;
 }
 
@@ -89,7 +96,7 @@ function renderSolo(D, r) {
   const P = ['나이 카드', '심박 카드', '조언 카드'].map((pos, i) => placement(D, pos, r.c[i][0], r.c[i][1]));
   const [age, heart, advice] = P;
   const songCard = song && song.c ? placement(D, '노래 카드', song.c, 0) : null;
-  const lines = ['기운의 흐름 · ' + T.dignity[dignity(heart.c.e, advice.c.e)]];
+  const lines = ['카드 궁합 · ' + T.dignity[dignity(heart.c.e, advice.c.e)]];
   if (songCard) {
     lines.push(T.song_flow[dignity(songCard.c.e, heart.c.e)]);
     if (songCard.c === age.c) lines.push('노래 카드가 내 나이 카드와 같아요. 노래가 당신의 카드를 한 번 더 불러냈어요');
@@ -114,10 +121,14 @@ function renderSolo(D, r) {
     '<div class="foot">Tick &amp; Track · 심박이 고른 노래와 타로</div>';
 }
 
-// ---------- 여러 명 ----------
+// ---------- 여러 명 (두 사람씩 운세는 없다. 모두의 키워드를 엮은 이야기 + 재미 수상) ----------
 function groupReading(D, g) {
   const T = D.text;
-  const members = g.p.map(([age, hr, e], i) => ({ i, age, hr, el: E[e], label: memberLabel(i, age) }));
+  const majors = Object.values(D.cards).filter((c) => c.s === 'major');
+  const members = g.p.map(([age, hr, e], i) => {
+    const ac = majors.find((c) => c.k === ageCard(age));
+    return { i, age, hr, el: E[e], label: memberLabel(i, age), kw: ac.u.split('·')[0].trim() };
+  });
   const els = Object.keys(T.element);
   const counts = Object.fromEntries(els.map((e) => [e, members.filter((m) => m.el === e).length]));
   const top = Math.max(...Object.values(counts));
@@ -127,14 +138,12 @@ function groupReading(D, g) {
   if (!lacks.length && top - Math.min(...Object.values(counts)) <= 1) mood = T.group_balanced;
   else if (dominant.length >= 3) mood = T.group_mixed;
   else mood = dominant.map((e) => T.group_mood[e]).join(' / ');
-  const spread = ['그룹 카드', '모임의 지금', '모임의 과제', '모임에게 주는 조언'].map((pos, i) => placement(D, pos, g.c[i][0], g.c[i][1]));
-  const majors = Object.values(D.cards).filter((c) => c.s === 'major');
-  const majorOf = (k) => majors.find((c) => c.k === k);
+  const spread = ['우리 모임 카드', '모임의 지금', '모임이 채울 것', '모임에게 주는 조언'].map((pos, i) => placement(D, pos, g.c[i][0], g.c[i][1]));
+  // 분위기 메이커·다리 역할 (두 사람씩 타입 궁합 점수로 고르지만 쌍은 보여 주지 않는다)
   const pairs = [];
   for (let i = 0; i < members.length; i++) for (let j = i + 1; j < members.length; j++) {
-    const a = members[i], b = members[j];
-    const d = dignity(a.el, b.el);
-    pairs.push({ i, j, a, b, d, score: D.pair_score[d], rel: majorOf(reduceMajor(ageCard(a.age) + ageCard(b.age))) });
+    const d = dignity(members[i].el, members[j].el);
+    pairs.push({ i, j, a: members[i], b: members[j], d, score: D.pair_score[d] });
   }
   const totals = members.map((m) => pairs.filter((p) => p.i === m.i || p.j === m.i).reduce((s, p) => s + p.score, 0));
   const best = Math.max(...totals);
@@ -145,46 +154,56 @@ function groupReading(D, g) {
     for (const c of members) {
       if (c.i === p.i || c.i === p.j) continue;
       const da = dignity(c.el, p.a.el), db = dignity(c.el, p.b.el);
-      if (da !== 'opposed' && db !== 'opposed' && (da === 'friendly' || db === 'friendly')) bridges.push([c.i, p]);
+      if (da !== 'opposed' && db !== 'opposed' && (da === 'friendly' || db === 'friendly')) bridges.push(c.i);
     }
   }
-  const nb = members.map((m) => bridges.filter(([k]) => k === m.i).length);
+  const nb = members.map((m) => bridges.filter((k) => k === m.i).length);
   const nbMax = Math.max(...nb);
-  const mediator = nbMax > 0 && nb.filter((n) => n === nbMax).length === 1 ? nb.indexOf(nbMax) : null;
-  pairs.sort((x, y) => y.score - x.score || x.i - y.i || x.j - y.j);
-  return { T, members, counts, mood, lacks, spread, pairs, hub, mediator, bridges };
+  const mediator = nbMax > 0 && nb.filter((x) => x === nbMax).length === 1 ? nb.indexOf(nbMax) : null;
+  // 이야기 (tarot_fortune.GroupReading.story 와 같은 문장)
+  const [gc, now, task, adv] = spread;
+  const seen = {};
+  const chain = members.map((m, i) => {
+    const acts = T.element_act[m.el];
+    const act = acts[(seen[m.el] || 0) % acts.length];
+    seen[m.el] = (seen[m.el] || 0) + 1;
+    return `${i + 1}번의 #${m.kw}${josa(m.kw, '이', '가')} ${act}${i === members.length - 1 ? '면' : '고'}`;
+  });
+  const taskKw = firstKeyword(task);
+  const homework = `'${taskKw}'${josa(taskKw, '이', '가')} 우리 모임의 숙제예요.`;
+  const story = [`우리 모임의 카드는 '${gc.c.n}'. 한마디로 '${firstKeyword(gc)}'의 모임이에요.`,
+    `${chain.join(', ')}, 우리 모임은 '${firstKeyword(now)}' 모드가 돼요.`,
+    lacks.length ? `'${lacks.map((e) => T.element_easy[e]).join("'·'")}' 타입이 없는 모임이라 ${homework}` : '모두 골고루 섞였지만 ' + homework,
+    `마지막으로 '${adv.c.n}' 카드가 전해요. ${adv.message}`];
+  const awards = [];
+  const hrs = members.map((m) => m.hr);
+  if (Math.max(...hrs) !== Math.min(...hrs)) {
+    for (const [title, val] of [['가장 두근거린 사람', Math.max(...hrs)], ['가장 침착한 사람', Math.min(...hrs)]]) {
+      awards.push([title, `${members.filter((m) => m.hr === val).map((m) => `${m.i + 1}번`).join('·')} (${val} BPM)`]);
+    }
+  }
+  if (hub !== null) awards.push(['분위기 메이커', `${hub + 1}번`]);
+  if (mediator !== null) awards.push(['다리 역할', `${mediator + 1}번`]);
+  return { T, members, counts, mood, lacks, spread, story, awards };
 }
 
-let G = null;          // 모임 계산 결과 (사람 칩을 누를 때 다시 그림)
-let focus = null;
-
 function renderGroup(D, g) {
-  G = G || groupReading(D, g);
-  const { T, members, mood, lacks, spread, pairs, hub, mediator, bridges } = G;
+  const { T, members, counts, mood, lacks, spread, story, awards } = groupReading(D, g);
   const notes = lacks.map((e) => '필요한 것 · ' + T.group_lack[e]);
-  if (g.l) notes.push(`이 모임의 플레이리스트는 ${T.element[E[g.l]]}의 기운이에요`);
-  const roles = [];
-  if (hub !== null) roles.push('모두와 잘 통하는 사람 · ' + members[hub].label);
-  if (mediator !== null) roles.push('사이를 이어 주는 사람 · ' + members[mediator].label);
-  const shown = focus === null ? pairs : pairs.filter((p) => p.i === focus || p.j === focus);
+  if (g.l) notes.push(`이 모임의 노래들은 '${T.element_easy[E[g.l]]}' 쪽이에요`);
   document.body.className = '';
   return `<div class="top"><span class="brand">TICK &amp; TRACK</span><span class="date">${esc(g.d)}</span></div>` +
-    `<h1>모임 ${members.length}명의 관계 운세</h1>` +
+    `<h1>모임 ${members.length}명의 운세</h1>` +
     `<div class="mood">${esc(mood)}</div>` +
-    `<div class="lines" style="margin-top:8px">${notes.map((l) => `<p>${esc(l)}</p>`).join('')}</div><hr>` +
+    `<div class="chips">${Object.keys(T.element).map((e) => `<span class="chip">${esc(T.element_easy[e])} ${counts[e]}명</span>`).join('')}</div>` +
+    `<div class="lines" style="margin-top:10px">${notes.map((l) => `<p>${esc(l)}</p>`).join('')}</div><hr>` +
+    '<div class="label">우리 모임 이야기</div>' +
+    `<div class="people">${members.map((m) => `<div><b>${esc(m.label)}</b> #${esc(m.kw)} · ${esc(T.element_nick[m.el])}</div>`).join('')}</div>` +
+    `<div class="story">${story.map((t) => `<p>${esc(t)}</p>`).join('')}</div>` +
+    `<div class="awards">${awards.map(([t, w]) => `<div><b>${esc(t)}</b> ${esc(w)}</div>`).join('')}</div><hr>` +
     '<div class="label">모임 종합 운세</div>' + spread.map(cardHTML).join('') +
-    `<div class="lines"><p>흐름 · ${esc(T.group_flow[dignity(spread[1].c.e, spread[2].c.e)])}</p>` +
-    roles.map((r) => `<p>${esc(r)}</p>`).join('') + '</div><hr>' +
-    `<div class="label">두 사람씩 (${pairs.length}쌍)</div>` +
-    `<div class="chips">${members.map((m) => `<button class="chip ${focus === m.i ? 'on' : ''}" data-i="${m.i}">${esc(m.label)} ${m.hr}BPM</button>`).join('')}</div>` +
-    shown.map((p) => {
-      const ks = bridges.filter(([, q]) => q === p).map(([k]) => members[k].label);
-      return `<div class="pair"><div class="w"><span>${esc(p.a.label)} × ${esc(p.b.label)}</span>` +
-        `<span class="d ${p.d}">${esc(T.dignity_short[p.d])}</span></div>` +
-        `<div class="r">관계 카드 <b>${esc(p.rel.n)}</b> · ${esc(p.rel.m)}</div>` +
-        (ks.length ? `<div class="b">이어 주는 사람 · ${esc(ks.join(', '))}</div>` : '') + '</div>';
-    }).join('') +
-    '<div class="foot">Tick &amp; Track · 심박으로 본 우리의 관계 · 이름을 눌러 그 사람의 관계만 보기</div>';
+    `<div class="lines"><p>흐름 · ${esc(T.group_flow[dignity(spread[1].c.e, spread[2].c.e)])}</p></div>` +
+    '<div class="foot">Tick &amp; Track · 심박으로 본 우리 모임</div>';
 }
 
 // ---------- 시작 ----------
@@ -199,13 +218,6 @@ async function main() {
   const D = await (await fetch('data.json')).json();
   const draw = () => { root.innerHTML = r.m === 'g' ? renderGroup(D, r) : renderSolo(D, r); };
   draw();
-  root.addEventListener('click', (e) => {
-    const b = e.target.closest('.chip');
-    if (!b) return;
-    const i = Number(b.dataset.i);
-    focus = focus === i ? null : i;
-    draw();
-  });
   $('actions').hidden = false;
   $('save').addEventListener('click', () => saveImage(root));
 }
