@@ -11,16 +11,37 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// 결과 코드 'v2.' + base64url(JSON 배열) -> 결과 (배열 순서는 web/share.py 설명과 같다)
 function decode(hash) {
-  const m = /^#v1\.([A-Za-z0-9_-]+)$/.exec(hash);
+  const m = /^#v2\.([A-Za-z0-9_-]+)$/.exec(hash);
   if (!m) return null;
   try {
     const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
     const bytes = Uint8Array.from(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)), (c) => c.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes));
+    return unpack(JSON.parse(new TextDecoder().decode(bytes)));
   } catch (e) {
     return null;
   }
+}
+function fmtDate(s) {       // YYMMDDHHMM -> 2026.10.21 17:30
+  return `20${s.slice(0, 2)}.${s.slice(2, 4)}.${s.slice(4, 6)} ${s.slice(6, 8)}:${s.slice(8, 10)}`;
+}
+function pairsOf(a, n) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push([a[2 * i], a[2 * i + 1]]);
+  return out;
+}
+function unpack(a) {
+  if (a[0] === 's') {
+    return { m: 's', d: fmtDate(a[1]), a: a[2], h: a[3], sid: a[4], y: [a[5], a[6]], c: pairsOf(a.slice(7), 3) };
+  }
+  if (a[0] === 'g') {
+    const n = a[3];
+    const p = [];
+    for (let i = 0; i < n; i++) p.push(a.slice(4 + 3 * i, 7 + 3 * i));
+    return { m: 'g', d: fmtDate(a[1]), l: a[2], p, c: pairsOf(a.slice(4 + 3 * n), 4) };
+  }
+  return null;
 }
 
 // ---------- tarot_fortune.py 와 같은 계산 ----------
@@ -62,7 +83,7 @@ function cardHTML(p) {
 // ---------- 혼자 ----------
 function renderSolo(D, r) {
   const T = D.text;
-  const song = D.songs[r.t + '|' + r.r];
+  const song = D.songs[r.sid];
   const P = ['나이 카드', '심박 카드', '조언 카드'].map((pos, i) => placement(D, pos, r.c[i][0], r.c[i][1]));
   const [age, heart, advice] = P;
   const songCard = song && song.c ? placement(D, '노래 카드', song.c, 0) : null;
@@ -83,8 +104,8 @@ function renderSolo(D, r) {
     `<div class="hr"><b>${r.h}</b><span>BPM</span></div>` +
     `<div class="meta">${ageLabel(r.a)} · 청소년기 ${r.y[0]}–${r.y[1]}년</div><hr>` +
     '<div class="label">♪ 그 시절 나의 노래</div>' +
-    `<div class="song">${esc(r.t)}</div><div class="song-meta">${esc(r.r)}` +
-    (song ? ` · ${song.y}년 · ${song.b} BPM · ${esc(song.tl)}` : '') + '</div>' +
+    (song ? `<div class="song">${esc(song.t)}</div><div class="song-meta">${esc(song.a)} · ${song.y}년 · ${song.b} BPM · ${esc(song.tl)}</div>`
+      : '<div class="song-meta">노래 정보를 찾지 못했어요</div>') +
     (song && song.me ? `<div class="meaning">${esc(song.me)}</div>` : '') + '<hr>' +
     '<div class="label">오늘의 타로</div>' + P.concat(songCard ? [songCard] : []).map(cardHTML).join('') +
     `<div class="lines">${lines.map((l) => `<p>${esc(l)}</p>`).join('')}</div>` +
