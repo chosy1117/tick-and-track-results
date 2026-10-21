@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0e0c16">
+<title>Tick &amp; Track</title>
+<link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+<!-- 결과는 주소의 '#' 뒤에만 있다. 이 페이지는 그것을 서버로 보내지 않고 이 휴대폰에서만 그린다 (viewer.js) -->
+<main id="result"></main>
+<div id="actions" hidden>
+  <button id="save">이미지로 저장</button>
+  <p class="note">이 결과는 어디에도 저장되지 않아요. QR 주소를 가진 사람만 볼 수 있어요.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+<script src="viewer.js"></script>
+</body>
+</html>
