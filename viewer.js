@@ -72,12 +72,14 @@ const memberLabel = (i, age) => `${i + 1}번(${age}세)`;
 
 function placement(D, position, id, rev) {
   const c = D.cards[id];
-  return { position, c, rev: !!rev, keywords: rev ? c.r : c.u, message: rev ? c.mr : c.m };
+  return { position, id, c, rev: !!rev, keywords: rev ? c.r : c.u, message: rev ? c.mr : c.m };
 }
+// 카드 그림(cards/<id>.jpg, 역방향이면 뒤집기) 옆에 자리·이름·키워드·한 줄 운세
 function cardHTML(p) {
-  return `<div class="card"><div class="p">${esc(p.position)}</div>` +
+  return `<div class="card"><div class="ci ${p.rev ? 'rev' : ''}"><img src="cards/${esc(p.id)}.jpg" alt="${esc(p.c.n)}"></div>` +
+    `<div class="ct"><div class="p">${esc(p.position)}</div>` +
     `<div class="n">${esc(p.c.n)}${p.rev ? '<small>역방향</small>' : ''}</div>` +
-    `<div class="k">${esc(p.keywords)}</div><div class="m">${esc(p.message)}</div></div>`;
+    `<div class="k">${esc(p.keywords)}</div><div class="m">${esc(p.message)}</div></div></div>`;
 }
 
 // ---------- 혼자 ----------
